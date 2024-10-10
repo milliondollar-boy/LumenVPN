@@ -1,135 +1,105 @@
 package dev.dev7.example;
 
 import static dev.dev7.lib.v2ray.utils.V2rayConstants.SERVICE_CONNECTION_STATE_BROADCAST_EXTRA;
-import static dev.dev7.lib.v2ray.utils.V2rayConstants.SERVICE_DOWNLOAD_SPEED_BROADCAST_EXTRA;
-import static dev.dev7.lib.v2ray.utils.V2rayConstants.SERVICE_DOWNLOAD_TRAFFIC_BROADCAST_EXTRA;
-import static dev.dev7.lib.v2ray.utils.V2rayConstants.SERVICE_DURATION_BROADCAST_EXTRA;
-import static dev.dev7.lib.v2ray.utils.V2rayConstants.SERVICE_UPLOAD_SPEED_BROADCAST_EXTRA;
-import static dev.dev7.lib.v2ray.utils.V2rayConstants.SERVICE_UPLOAD_TRAFFIC_BROADCAST_EXTRA;
 import static dev.dev7.lib.v2ray.utils.V2rayConstants.V2RAY_SERVICE_STATICS_BROADCAST_INTENT;
 
 import android.annotation.SuppressLint;
 import android.content.BroadcastReceiver;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Handler;
+import android.text.InputType;
+import android.view.Menu;
+import android.view.MenuItem;
+import android.view.SubMenu;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageButton;
 import android.widget.TextView;
+import android.widget.Toast;
 
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar;
 
+import java.util.Map;
 import java.util.Objects;
 
 import dev.dev7.lib.v2ray.V2rayController;
-import dev.dev7.lib.v2ray.utils.V2rayConfigs;
 import dev.dev7.lib.v2ray.utils.V2rayConstants;
 
 public class MainActivity extends AppCompatActivity {
 
-    private Button connection;
-    private TextView connection_speed, connection_traffic, connection_time, server_delay, connected_server_delay, connection_mode,core_version;
-    private EditText v2ray_config;
+    private Button ddd;
+    private ImageButton connection;
     private SharedPreferences sharedPreferences;
     private BroadcastReceiver v2rayBroadCastReceiver;
+    private final String tgLink = "https://t.me/sale_lumen_bot";
 
     @SuppressLint({"SetTextI18n", "UnspecifiedRegisterReceiverFlag"})
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+
+
+        Toolbar toolbar = findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
+
         if (savedInstanceState == null) {
             V2rayController.init(this, R.drawable.ic_launcher, "V2ray Android");
-            connection = findViewById(R.id.btn_connection);
-            connection_speed = findViewById(R.id.connection_speed);
-            connection_time = findViewById(R.id.connection_duration);
-            connection_traffic = findViewById(R.id.connection_traffic);
-            server_delay = findViewById(R.id.server_delay);
-            connection_mode = findViewById(R.id.connection_mode);
-            connected_server_delay = findViewById(R.id.connected_server_delay);
-            v2ray_config = findViewById(R.id.v2ray_config);
-            core_version = findViewById(R.id.core_version);
+            connection = findViewById(R.id.imageButton4);
+            ddd = findViewById(R.id.button15);
         }
-
-        core_version.setText(V2rayController.getCoreVersion());
-        // initialize shared preferences for save or reload default config
         sharedPreferences = getSharedPreferences("conf", MODE_PRIVATE);
-        // reload previous config to edit text
-        v2ray_config.setText(sharedPreferences.getString("v2ray_config", getDefaultConfig()));
+
+
         connection.setOnClickListener(view -> {
-            sharedPreferences.edit().putString("v2ray_config", v2ray_config.getText().toString()).apply();
-            if (V2rayController.getConnectionState() == V2rayConstants.CONNECTION_STATES.DISCONNECTED) {
-                V2rayController.startV2ray(this, "Test Server", v2ray_config.getText().toString(), null);
+            String savedConfig = sharedPreferences.getString("v2ray_config", getDefaultConfig());
+            if (savedConfig.isEmpty()) {
+                Toast.makeText(this, "Конфигурация отсутствует. Пожалуйста, введите конфигурацию.", Toast.LENGTH_SHORT).show();
             } else {
-                V2rayController.stopV2ray(this);
+                if (V2rayController.getConnectionState() == V2rayConstants.CONNECTION_STATES.DISCONNECTED) {
+                    V2rayController.startV2ray(this, "Test Server", savedConfig, null);
+                } else {
+                    V2rayController.stopV2ray(this);
+                }
             }
         });
 
 
-        // Check the connection delay of connected config.
-        connected_server_delay.setOnClickListener(view -> {
-            connected_server_delay.setText("connected server delay : measuring...");
-            // Don`t forget to do ui jobs in ui thread!
-            V2rayController.getConnectedV2rayServerDelay(this, delayResult -> runOnUiThread(() -> connected_server_delay.setText("connected server delay : " + delayResult + "ms")));
-        });
-        // Another way to check the connection delay of a config without connecting to it.
-        server_delay.setOnClickListener(view -> {
-            server_delay.setText("server delay : measuring...");
-            new Handler().postDelayed(() -> server_delay.setText("server delay : " + V2rayController.getV2rayServerDelay(v2ray_config.getText().toString()) + "ms"), 200);
-        });
 
-        connection_mode.setOnClickListener(view -> {
-            V2rayController.toggleConnectionMode();
-            connection_mode.setText("connection mode : " + V2rayConfigs.serviceMode.toString());
-        });
 
-        // Check connection state when activity launch
-        switch (V2rayController.getConnectionState()) {
-            case CONNECTED:
-                connection.setText("CONNECTED");
-                // check  connection latency
-                connected_server_delay.callOnClick();
-                break;
-            case DISCONNECTED:
-                connection.setText("DISCONNECTED");
-                break;
-            case CONNECTING:
-                connection.setText("CONNECTING");
-                break;
-            default:
-                break;
-        }
-        //I tested several different ways to send information from the connection process side
-        // to other places (such as interfaces, AIDL and singleton ,...) apparently the best way
-        // to send information is broadcast.
-        // So v2ray library will be broadcast information with action V2RAY_CONNECTION_INFO.
         v2rayBroadCastReceiver = new BroadcastReceiver() {
+            @SuppressLint("SetTextI18n")
             @Override
-            public void onReceive(Context context, Intent intent) {
-                runOnUiThread(() -> {
-                    connection_time.setText("connection time : " + Objects.requireNonNull(intent.getExtras()).getString(SERVICE_DURATION_BROADCAST_EXTRA));
-                    connection_speed.setText("connection speed : " + intent.getExtras().getString(SERVICE_UPLOAD_SPEED_BROADCAST_EXTRA) + " | " + intent.getExtras().getString(SERVICE_DOWNLOAD_SPEED_BROADCAST_EXTRA));
-                    connection_traffic.setText("connection traffic : " + intent.getExtras().getString(SERVICE_UPLOAD_TRAFFIC_BROADCAST_EXTRA) + " | " + intent.getExtras().getString(SERVICE_DOWNLOAD_TRAFFIC_BROADCAST_EXTRA));
-                    connection_mode.setText("connection mode : " + V2rayConfigs.serviceMode.toString());
-                    switch ((V2rayConstants.CONNECTION_STATES) Objects.requireNonNull(intent.getExtras().getSerializable(SERVICE_CONNECTION_STATE_BROADCAST_EXTRA))) {
-                        case CONNECTED:
-                            connection.setText("CONNECTED");
-                            break;
-                        case DISCONNECTED:
-                            connection.setText("DISCONNECTED");
-                            connected_server_delay.setText("connected server delay : wait for connection");
-                            break;
-                        case CONNECTING:
-                            connection.setText("CONNECTING");
-                            break;
-                        default:
-                            break;
-                    }
-                });
+            public void onReceive(Context context, Intent intent) {runOnUiThread(() -> {
+
+                switch ((V2rayConstants.CONNECTION_STATES) Objects.requireNonNull(Objects.requireNonNull(intent.getExtras()).getSerializable(SERVICE_CONNECTION_STATE_BROADCAST_EXTRA))) {
+                    case CONNECTED:
+                        connection.setImageResource(R.drawable.disconnection);
+                        ddd.setText("Подключено");
+                        break;
+                    case DISCONNECTED:
+                        connection.setImageResource(R.drawable.connection);
+                        ddd.setText("Отключено");
+                        break;
+                    case CONNECTING:
+                        ddd.setText("CONNECTING");
+                        break;
+                    default:
+                        break;
+
+                }
+            });
             }
         };
 
@@ -139,6 +109,8 @@ public class MainActivity extends AppCompatActivity {
             registerReceiver(v2rayBroadCastReceiver, new IntentFilter(V2RAY_SERVICE_STATICS_BROADCAST_INTENT));
         }
     }
+
+
 
     public static String getDefaultConfig() {
         return "";
@@ -152,4 +124,236 @@ public class MainActivity extends AppCompatActivity {
             unregisterReceiver(v2rayBroadCastReceiver);
         }
     }
+
+    private String extractIdFromConfig(String url) {
+        String textAfterHash = extractTextAfterHash(url);
+        if (textAfterHash.contains("_")) {
+            String[] parts = textAfterHash.split("_");
+            if (parts.length > 1) {
+                return parts[1]; // Возвращаем часть после _
+            }
+        }
+        return ""; // Если символа _ нет или нет текста после него, возвращаем пустую строку
+    }
+
+    private String extractTextAfterHash(String url) {
+        if (url.contains("#")) {
+            // Разделяем строку по символу #
+            String[] parts = url.split("#");
+            if (parts.length > 1) {
+                return parts[1]; // Возвращаем текст после #
+            }
+        }
+        return ""; // Если символа # нет или нет текста после него, возвращаем пустую строку
+    }
+
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu){
+        getMenuInflater().inflate(R.menu.popup_menu, menu);
+
+        MenuItem configurationsMenuItem = menu.findItem(R.id.configurations);
+        MenuItem userId = menu.findItem(R.id.id);
+        SubMenu configurationsSubMenu = configurationsMenuItem.getSubMenu();
+
+        // Загружаем сохраненные конфигурации из SharedPreferences
+        sharedPreferences = getSharedPreferences("conf", MODE_PRIVATE);
+        Map<String, ?> allConfigs = sharedPreferences.getAll();
+
+
+
+        if (allConfigs != null && !allConfigs.isEmpty()) {
+            for (Map.Entry<String, ?> entry : allConfigs.entrySet()) {
+                String configName = extractTextAfterHash(entry.getValue().toString()); // Имя конфигурации
+                String configUrl = entry.getValue().toString(); // Ссылка конфигурации
+
+                String configId = extractIdFromConfig(configUrl); // Извлекаем ID
+
+                if(userId != null && configId != null) {
+                    // Форматируем название для подменю
+                    userId.setTitle("ID: " + configId);
+                }
+
+                // Добавляем элемент в подменю
+                assert configurationsSubMenu != null;
+                configurationsSubMenu.add(configName)
+                        .setOnMenuItemClickListener(item -> {
+                            showConfigDialog(configName, configUrl); // Открываем диалог при нажатии
+                            return true;
+                        });
+            }
+        } else {
+            assert configurationsSubMenu != null;
+            configurationsSubMenu.add("Нет сохраненных конфигураций");
+        }
+        invalidateOptionsMenu();
+
+        return true;
+    }
+    private void showConfigDialog(String configName, String configUrl) {
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle(configName); // Устанавливаем название конфигурации
+
+        // Создаем TextView для отображения ссылки
+        TextView linkView = new TextView(this);
+        linkView.setText(configUrl); // Отображаем конфигурационную ссылку
+        linkView.setPadding(40, 40, 40, 40); // Добавляем отступы для красоты
+
+        // Устанавливаем View в диалог
+        builder.setView(linkView);
+
+        // Добавляем кнопку "Скопировать"
+        builder.setPositiveButton("Скопировать", (dialog, which) -> {
+            copyToClipboard(configUrl); // Копируем ссылку в буфер обмена
+        });
+
+        // Добавляем кнопку "Удалить"
+        builder.setNegativeButton("Удалить", (dialog, which) -> {
+            showDeleteConfirmationDialog(configName); // Удаление конфигурации
+        });
+
+        // Добавляем кнопку "Отмена"
+        builder.setNeutralButton("Отмена", (dialog, which) -> dialog.cancel());
+
+        // Показываем диалог
+        builder.show();
+    }
+    private void copyToClipboard(String text) {
+        // Используем систему для копирования текста в буфер обмена
+        android.content.ClipboardManager clipboard = (android.content.ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        android.content.ClipData clip = android.content.ClipData.newPlainText("VPN Configuration", text);
+        clipboard.setPrimaryClip(clip);
+
+        // Показываем сообщение, что ссылка скопирована
+        Toast.makeText(this, "Ссылка скопирована в буфер обмена", Toast.LENGTH_SHORT).show();
+    }
+
+
+
+    private void showDeleteConfirmationDialog(String configName) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Удалить конфигурацию?");
+        builder.setMessage("Вы уверены, что хотите удалить конфигурацию \"" + configName + "\"?");
+        builder.setPositiveButton("Удалить", (dialog, which) -> {
+            resetConfig(); // Удаляем конфигурацию
+        });
+        builder.setNegativeButton("Отмена", (dialog, which) -> dialog.dismiss());
+        builder.show();
+    }
+
+
+    @Override
+    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+
+        int id = item.getItemId();
+
+
+        if(id == R.id.vvod){
+            showInputDialog(); // Показываем диалог для ввода конфигурации
+        }
+        if(id == R.id.bupher){
+            importConfigFromClipboard();
+        }
+        if(id == R.id.tgBot){
+            openTelegramBot();
+        }
+        if(id == R.id.share){
+            shareApp();
+        }
+
+        if(id == R.id.about){
+            aboutUs();
+        }
+
+        return super.onOptionsItemSelected(item);
+
+    }
+
+    private void showInputDialog() {
+        // Создаем AlertDialog для ввода конфигурации
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Введите конфигурационную ссылку");
+
+        // Создаем EditText для ввода
+        EditText input = new EditText(this);
+        input.setInputType(InputType.TYPE_CLASS_TEXT); // Указываем, что это текстовое поле
+        builder.setView(input);
+
+        // Устанавливаем кнопки
+        builder.setPositiveButton("Сохранить", (dialog, which) -> {
+            String config = input.getText().toString().trim();
+
+            // Проверка на корректность конфигурации
+            if (!config.startsWith("vless://")) {
+                Toast.makeText(this, "Некорректная конфигурация. Проверьте введенную ссылку.", Toast.LENGTH_SHORT).show();
+                return; // Не сохраняем, если конфигурация некорректна
+            }
+
+            saveConfig(config); // Сохраняем введенную конфигурацию
+        });
+        builder.setNegativeButton("Отмена", (dialog, which) -> dialog.cancel());
+
+        builder.show(); // Показываем диалог
+    }
+
+
+    private String getClipboardText() { // ввод из буфера обмена
+        ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        ClipData clip = clipboard.getPrimaryClip();
+        if (clip != null && clip.getItemCount() > 0) {
+            return clip.getItemAt(0).getText().toString();
+        }
+        return null;
+    }
+
+    private void importConfigFromClipboard() { // ввод из буфера обмена
+        String config = getClipboardText();
+        if (config != null && !config.isEmpty()) {
+            // Проверка на корректность конфигурации
+            if (config.startsWith("vless://")) {
+                saveConfig(config); // Сохраняем конфигурацию
+                Toast.makeText(this, "Конфигурация успешно импортирована.", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(this, "Некорректная конфигурация. Проверьте буфер обмена.", Toast.LENGTH_SHORT).show();
+            }
+        } else {
+            Toast.makeText(this, "Буфер обмена пуст.", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    public void saveConfig(String config){
+        sharedPreferences.edit().putString("v2ray_config", config).apply(); // Сохраняем конфигурацию
+    }
+
+
+
+    private void resetConfig() {
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+        editor.remove("v2ray_config"); // Удаляем сохранённую конфигурацию
+        editor.apply();
+        V2rayController.stopV2ray(this);
+
+        // Здесь можно добавить уведомление о том, что конфигурация сброшена
+        Toast.makeText(this, "Конфигурация сброшена, VPN отключен", Toast.LENGTH_SHORT).show();
+    }
+
+    public void shareApp(){
+        Intent shareIntent = new Intent();
+        shareIntent.setAction(Intent.ACTION_SEND);
+        shareIntent.putExtra(Intent.EXTRA_TEXT, "Привет! Попробуй этот VPN: " + tgLink);
+        shareIntent.setType("text/plain");
+        startActivity(Intent.createChooser(shareIntent, "Поделиться ботом через"));
+    }
+
+    public void aboutUs(){
+        Intent intent = new Intent(MainActivity.this, AboutActivity.class);
+        startActivity(intent);
+    }
+
+    public void openTelegramBot(){
+        Intent telegram = new Intent(Intent.ACTION_VIEW , Uri.parse(tgLink));
+        startActivity(telegram);
+    }
+
 }
