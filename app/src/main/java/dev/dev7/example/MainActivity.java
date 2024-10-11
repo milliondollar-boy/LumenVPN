@@ -1,6 +1,7 @@
 package dev.dev7.example;
 
 import static dev.dev7.lib.v2ray.utils.V2rayConstants.SERVICE_CONNECTION_STATE_BROADCAST_EXTRA;
+import static dev.dev7.lib.v2ray.utils.V2rayConstants.SERVICE_DURATION_BROADCAST_EXTRA;
 import static dev.dev7.lib.v2ray.utils.V2rayConstants.V2RAY_SERVICE_STATICS_BROADCAST_INTENT;
 
 import android.annotation.SuppressLint;
@@ -37,6 +38,8 @@ import dev.dev7.lib.v2ray.utils.V2rayConstants;
 
 public class MainActivity extends AppCompatActivity {
 
+
+    private TextView connection_time;
     private Button ddd;
     private ImageButton connection;
     private SharedPreferences sharedPreferences;
@@ -54,11 +57,10 @@ public class MainActivity extends AppCompatActivity {
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
 
-        if (savedInstanceState == null) {
-            V2rayController.init(this, R.drawable.ic_launcher, "V2ray Android");
-            connection = findViewById(R.id.imageButton4);
-            ddd = findViewById(R.id.button15);
-        }
+        V2rayController.init(this, R.drawable.ic_launcher, "V2ray Android");
+        connection = findViewById(R.id.imageButton4);
+        ddd = findViewById(R.id.button15);
+        connection_time = findViewById(R.id.textView2);
         sharedPreferences = getSharedPreferences("conf", MODE_PRIVATE);
 
 
@@ -82,6 +84,9 @@ public class MainActivity extends AppCompatActivity {
             @SuppressLint("SetTextI18n")
             @Override
             public void onReceive(Context context, Intent intent) {runOnUiThread(() -> {
+
+                connection_time.setText("Время подключения : " + Objects.requireNonNull(intent.getExtras()).getString(SERVICE_DURATION_BROADCAST_EXTRA));
+
 
                 switch ((V2rayConstants.CONNECTION_STATES) Objects.requireNonNull(Objects.requireNonNull(intent.getExtras()).getSerializable(SERVICE_CONNECTION_STATE_BROADCAST_EXTRA))) {
                     case CONNECTED:
