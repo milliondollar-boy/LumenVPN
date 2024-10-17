@@ -15,10 +15,14 @@ import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
 import android.text.InputType;
+import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.SubMenu;
+import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageButton;
@@ -67,11 +71,14 @@ public class MainActivity extends AppCompatActivity {
         connection.setOnClickListener(view -> {
             String savedConfig = sharedPreferences.getString("v2ray_config", getDefaultConfig());
             if (savedConfig.isEmpty()) {
-                Toast.makeText(this, "Конфигурация отсутствует. Пожалуйста, введите конфигурацию.", Toast.LENGTH_SHORT).show();
+                showCenteredOkDialog();
             } else {
                 if (V2rayController.getConnectionState() == V2rayConstants.CONNECTION_STATES.DISCONNECTED) {
+                    vibrate();
+                    connection.setImageResource(R.drawable.disconnection);
                     V2rayController.startV2ray(this, "Test Server", savedConfig, null);
                 } else {
+                    vibrate();
                     V2rayController.stopV2ray(this);
                 }
             }
@@ -90,7 +97,6 @@ public class MainActivity extends AppCompatActivity {
 
                 switch ((V2rayConstants.CONNECTION_STATES) Objects.requireNonNull(Objects.requireNonNull(intent.getExtras()).getSerializable(SERVICE_CONNECTION_STATE_BROADCAST_EXTRA))) {
                     case CONNECTED:
-                        connection.setImageResource(R.drawable.disconnection);
                         ddd.setText("Подключено");
                         break;
                     case DISCONNECTED:
@@ -115,6 +121,38 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private void showCenteredOkDialog() {
+        // Создаем Builder для AlertDialog
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+
+        // Инфлейтим кастомный макет
+        LayoutInflater inflater = getLayoutInflater();
+        View dialogView = inflater.inflate(R.layout.dialog_center_button, null);
+        builder.setView(dialogView);
+
+        // Создаем AlertDialog
+        AlertDialog dialog = builder.create();
+
+        // Находим кнопку в кастомном макете и устанавливаем слушатель
+        Button buttonOK = dialogView.findViewById(R.id.buttonOK);
+        buttonOK.setOnClickListener(v -> dialog.dismiss());
+
+        // Показываем диалог
+        dialog.show();
+    }
+
+    private void vibrate() {
+        // Получаем Vibrator из контекста
+        Vibrator vibrator = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+
+        // Проверяем, доступна ли вибрация на устройстве
+        if (vibrator != null && vibrator.hasVibrator()) {
+            // Вызов вибрации на 100 миллисекунд (Android 8.0+)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator.vibrate(VibrationEffect.createOneShot(60, VibrationEffect.DEFAULT_AMPLITUDE));
+            }
+        }
+    }
 
 
     public static String getDefaultConfig() {
@@ -181,7 +219,7 @@ public class MainActivity extends AppCompatActivity {
 
                 // Добавляем элемент в подменю
                 assert configurationsSubMenu != null;
-                configurationsSubMenu.add(configName)
+                configurationsSubMenu.add(configName).setIcon(R.drawable.baseline_delete_forever_24)
                         .setOnMenuItemClickListener(item -> {
                             showConfigDialog(configName, configUrl); // Открываем диалог при нажатии
                             return true;
@@ -274,6 +312,8 @@ public class MainActivity extends AppCompatActivity {
         return super.onOptionsItemSelected(item);
 
     }
+
+
 
     private void showInputDialog() {
         // Создаем AlertDialog для ввода конфигурации
